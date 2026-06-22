@@ -190,6 +190,14 @@ void TCLACClimate::setup() {
   this->current_temperature = NAN;
   this->publish_state();
   this->publish_aux_();
+  if (this->v_louver_select_) {
+    auto &opts = this->v_louver_select_->traits.get_options();
+    if (!opts.empty()) this->v_louver_select_->publish_state(opts[0]);
+  }
+  if (this->h_louver_select_) {
+    auto &opts = this->h_louver_select_->traits.get_options();
+    if (!opts.empty()) this->h_louver_select_->publish_state(opts[0]);
+  }
   reset_rx_();
   ESP_LOGI(TAG, "TCL Ocarina AC ready");
 }
