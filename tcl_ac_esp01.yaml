@@ -44,8 +44,6 @@ uart:
   stop_bits: 1
 
 external_components:
-  # For local development, replace with:
-  #   source: { type: local, path: . }
   - source: github://V-Plum/tcl_ac_esphome
     components: [tcl_ac]
 
