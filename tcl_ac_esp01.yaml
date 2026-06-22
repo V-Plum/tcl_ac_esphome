@@ -71,3 +71,18 @@ switch:
     type: beeper
     icon: mdi:volume-high
     restore_mode: RESTORE_DEFAULT_ON
+
+select:
+  - platform: tcl_ac
+    name: "${friendly_name} Vertical Louver"
+    id: ac_v_louver
+    tcl_ac_id: ac
+    type: vertical_louver
+    icon: mdi:arrow-up-down
+
+  - platform: tcl_ac
+    name: "${friendly_name} Horizontal Louver"
+    id: ac_h_louver
+    tcl_ac_id: ac
+    type: horizontal_louver
+    icon: mdi:arrow-left-right

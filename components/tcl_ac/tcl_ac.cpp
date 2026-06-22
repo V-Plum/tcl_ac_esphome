@@ -126,20 +126,32 @@ void TCLACClimate::build_control_frame_() {
     default: /* AUTO = 0, already zeroed */                                       break;
   }
 
-  // ---- Bytes 10 + 11: swing modes ----
-  switch (this->swing_mode) {
-    case climate::CLIMATE_SWING_VERTICAL:
-      this->tx_[10] |= TX10_SWING_V;
-      break;
-    case climate::CLIMATE_SWING_HORIZONTAL:
-      this->tx_[11] |= TX11_SWING_H;
-      break;
-    case climate::CLIMATE_SWING_BOTH:
-      this->tx_[10] |= TX10_SWING_V;
-      this->tx_[11] |= TX11_SWING_H;
-      break;
-    default:
-      break;
+  // ---- TX[10] bits 5-3 / TX[32]: vertical louver ----
+  // ---- TX[11] bit 3   / TX[33]: horizontal louver ----
+  // Index 0 = last/off; 1-3 = swing modes; 4-8 = fix positions (vertical)
+  //                      1-4 = swing modes; 5-9 = fix positions (horizontal)
+  switch (this->v_louver_) {
+    case 1: this->tx_[10] |= TX10_SWING_V; this->tx_[32] |= 0x08; break;  // swing full
+    case 2: this->tx_[10] |= TX10_SWING_V; this->tx_[32] |= 0x10; break;  // swing upper
+    case 3: this->tx_[10] |= TX10_SWING_V; this->tx_[32] |= 0x18; break;  // swing lower
+    case 4: this->tx_[32] |= 0x01; break;  // fix full up
+    case 5: this->tx_[32] |= 0x02; break;  // fix upper
+    case 6: this->tx_[32] |= 0x03; break;  // fix center
+    case 7: this->tx_[32] |= 0x04; break;  // fix lower
+    case 8: this->tx_[32] |= 0x05; break;  // fix full down
+    default: break;
+  }
+  switch (this->h_louver_) {
+    case 1: this->tx_[11] |= TX11_SWING_H; this->tx_[33] |= 0x08; break;  // swing full
+    case 2: this->tx_[11] |= TX11_SWING_H; this->tx_[33] |= 0x10; break;  // swing left
+    case 3: this->tx_[11] |= TX11_SWING_H; this->tx_[33] |= 0x18; break;  // swing center
+    case 4: this->tx_[11] |= TX11_SWING_H; this->tx_[33] |= 0x20; break;  // swing right
+    case 5: this->tx_[33] |= 0x01; break;  // fix full left
+    case 6: this->tx_[33] |= 0x02; break;  // fix left
+    case 7: this->tx_[33] |= 0x03; break;  // fix center
+    case 8: this->tx_[33] |= 0x04; break;  // fix right
+    case 9: this->tx_[33] |= 0x05; break;  // fix full right
+    default: break;
   }
 
   // ---- Byte 9: target temperature encoded as (31 - °C) ----
@@ -158,11 +170,11 @@ void TCLACClimate::build_control_frame_() {
 void TCLACClimate::send_control_frame_() {
   this->build_control_frame_();
   this->write_array(this->tx_, sizeof(this->tx_));
-  ESP_LOGD(TAG, "TX CTRL mode=%d fan=%d swing=%d preset=%d b7=0x%02X b8=0x%02X b10=0x%02X tgt=%.1f",
+  ESP_LOGD(TAG, "TX CTRL mode=%d fan=%d preset=%d v=%d h=%d b7=0x%02X b8=0x%02X b10=0x%02X tgt=%.1f",
            (int) this->mode,
            this->fan_mode.has_value() ? (int) this->fan_mode.value() : -1,
-           (int) this->swing_mode,
            this->preset.has_value() ? (int) this->preset.value() : -1,
+           this->v_louver_, this->h_louver_,
            this->tx_[7], this->tx_[8], this->tx_[10],
            this->target_temperature);
 }
@@ -174,7 +186,6 @@ void TCLACClimate::send_control_frame_() {
 void TCLACClimate::setup() {
   this->mode         = climate::CLIMATE_MODE_OFF;
   this->fan_mode     = climate::CLIMATE_FAN_AUTO;
-  this->swing_mode   = climate::CLIMATE_SWING_OFF;
   this->target_temperature = 24.0f;
   this->current_temperature = NAN;
   this->publish_state();
@@ -251,13 +262,6 @@ climate::ClimateTraits TCLACClimate::traits() {
       climate::CLIMATE_FAN_FOCUS,
       climate::CLIMATE_FAN_DIFFUSE,
       climate::CLIMATE_FAN_QUIET,
-  });
-
-  t.set_supported_swing_modes({
-      climate::CLIMATE_SWING_OFF,
-      climate::CLIMATE_SWING_VERTICAL,
-      climate::CLIMATE_SWING_HORIZONTAL,
-      climate::CLIMATE_SWING_BOTH,
   });
 
   t.set_supported_presets({
@@ -461,7 +465,6 @@ void TCLACClimate::control(const climate::ClimateCall &call) {
       call.get_target_temperature().has_value()      ||
       call.get_target_temperature_low().has_value()  ||
       call.get_target_temperature_high().has_value() ||
-      call.get_swing_mode().has_value()              ||
       call.get_preset().has_value();
 
   if (!has_any) return;
@@ -509,9 +512,7 @@ void TCLACClimate::control(const climate::ClimateCall &call) {
     }
   }
 
-  // Swing and preset have no RX echo to worry about, so no pending needed
-  if (call.get_swing_mode().has_value()) this->swing_mode = *call.get_swing_mode();
-  if (call.get_preset().has_value())     this->preset     = *call.get_preset();
+  if (call.get_preset().has_value()) this->preset = *call.get_preset();
 
   if (new_pending) {
     this->pending_mask_     = new_pending;
@@ -522,6 +523,36 @@ void TCLACClimate::control(const climate::ClimateCall &call) {
   // Fan changes are least reliable on UART; give them an extra retry
   this->arm_resend_(now, (new_pending & PEND_FAN_) ? 3 : 2);
   this->publish_state();
+}
+
+// ============================================================
+// Louver select entities
+// ============================================================
+
+void TCLACSelect::control(const std::string &value) {
+  auto idx = this->index_of(value);
+  if (!idx.has_value()) return;
+  if (this->type_ == TCLACSelectType::LOUVER_V)
+    this->parent_->set_vertical_louver(static_cast<uint8_t>(idx.value()));
+  else
+    this->parent_->set_horizontal_louver(static_cast<uint8_t>(idx.value()));
+  this->publish_state(value);
+}
+
+void TCLACClimate::set_vertical_louver(uint8_t idx) {
+  if (this->v_louver_ == idx) return;
+  this->v_louver_ = idx;
+  const uint32_t now = millis();
+  this->send_control_frame_();
+  this->arm_resend_(now, 2);
+}
+
+void TCLACClimate::set_horizontal_louver(uint8_t idx) {
+  if (this->h_louver_ == idx) return;
+  this->h_louver_ = idx;
+  const uint32_t now = millis();
+  this->send_control_frame_();
+  this->arm_resend_(now, 2);
 }
 
 }  // namespace tcl_ac

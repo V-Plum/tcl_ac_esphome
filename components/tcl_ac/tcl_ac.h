@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/climate/climate.h"
+#include "esphome/components/select/select.h"
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/uart/uart.h"
 
@@ -15,6 +16,11 @@ enum TCLACSwitchType : uint8_t {
   BEEPER_ON  = 1,
 };
 
+enum TCLACSelectType : uint8_t {
+  LOUVER_V = 0,
+  LOUVER_H = 1,
+};
+
 class TCLACClimate;
 
 class TCLACSwitch : public switch_::Switch, public Parented<TCLACClimate> {
@@ -26,10 +32,22 @@ class TCLACSwitch : public switch_::Switch, public Parented<TCLACClimate> {
   TCLACSwitchType type_{TCLACSwitchType::DISPLAY_ON};
 };
 
+// Index maps directly to option position in select.py V_OPTIONS / H_OPTIONS.
+// Vertical:   0=last  1=swing_full  2=swing_upper  3=swing_lower
+//             4=fix_top  5=fix_upper  6=fix_center  7=fix_lower  8=fix_bottom
+// Horizontal: 0=last  1=swing_full  2=swing_left  3=swing_center  4=swing_right
+//             5=fix_full_left  6=fix_left  7=fix_center  8=fix_right  9=fix_full_right
+class TCLACSelect : public select::Select, public Parented<TCLACClimate> {
+ public:
+  void set_type(TCLACSelectType type) { this->type_ = type; }
+
+ protected:
+  void control(const std::string &value) override;
+  TCLACSelectType type_{TCLACSelectType::LOUVER_V};
+};
+
 class TCLACClimate : public climate::Climate, public uart::UARTDevice, public Component {
  public:
-  // UARTDevice default ctor used; parent set via register_uart_device → set_uart_parent()
-
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -43,6 +61,11 @@ class TCLACClimate : public climate::Climate, public uart::UARTDevice, public Co
   void set_display_switch(switch_::Switch *sw) { this->display_switch_ = sw; }
   void set_beeper_switch(switch_::Switch *sw)  { this->beeper_switch_  = sw; }
 
+  void set_vertical_louver(uint8_t idx);
+  void set_horizontal_louver(uint8_t idx);
+  void set_vertical_louver_select(select::Select *s)   { this->v_louver_select_ = s; }
+  void set_horizontal_louver_select(select::Select *s) { this->h_louver_select_ = s; }
+
  protected:
   static uint8_t checksum_xor_(const uint8_t *data, size_t len);
   void reset_rx_();
@@ -52,24 +75,18 @@ class TCLACClimate : public climate::Climate, public uart::UARTDevice, public Co
   void publish_aux_();
   void arm_resend_(uint32_t now, int count);
 
-  // RX buffer — 96 bytes covers any known response (max observed: 61 bytes)
   uint8_t rx_[96];
   size_t  rx_pos_{0};
   size_t  rx_total_{0};
 
-  // TX control frame — 38 bytes confirmed by sanyadez (same protocol variant)
   uint8_t tx_[38];
 
-  // Non-blocking resend: repeat control frame a few times for reliability over noisy UART
   int      control_resend_left_{0};
   uint32_t next_control_send_ms_{0};
 
-  // Polling: request AC status every second, suppressed briefly after a control TX
   uint32_t last_poll_ms_{0};
   uint32_t suppress_poll_until_ms_{0};
 
-  // Pending confirmation: hold desired state in the HA UI while the AC processes the command,
-  // so RX echoing the old value does not cause a visible bounce.
   static constexpr uint8_t PEND_MODE_ = 0x01;
   static constexpr uint8_t PEND_FAN_  = 0x02;
   static constexpr uint8_t PEND_TEMP_ = 0x04;
@@ -81,11 +98,16 @@ class TCLACClimate : public climate::Climate, public uart::UARTDevice, public Co
   climate::ClimateFanMode pending_fan_{climate::CLIMATE_FAN_AUTO};
   float                   pending_target_{0.0f};
 
-  // Display / beeper current state (exposed as independent ESPHome switch entities)
   bool display_on_{true};
   bool beeper_on_{true};
   switch_::Switch *display_switch_{nullptr};
   switch_::Switch *beeper_switch_{nullptr};
+
+  // 0 = off/last position; see TCLACSelect index comment above
+  uint8_t v_louver_{0};
+  uint8_t h_louver_{0};
+  select::Select *v_louver_select_{nullptr};
+  select::Select *h_louver_select_{nullptr};
 };
 
 }  // namespace tcl_ac
