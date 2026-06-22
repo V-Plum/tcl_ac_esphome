@@ -103,9 +103,9 @@ class TCLACClimate : public climate::Climate, public uart::UARTDevice, public Co
   switch_::Switch *display_switch_{nullptr};
   switch_::Switch *beeper_switch_{nullptr};
 
-  // 0 = off/last position; see TCLACSelect index comment above
-  uint8_t v_louver_{0};
-  uint8_t h_louver_{0};
+  // 0xFF = unknown (not yet received from AC); 0 = off/last; see TCLACSelect comment above
+  uint8_t v_louver_{0xFF};
+  uint8_t h_louver_{0xFF};
   select::Select *v_louver_select_{nullptr};
   select::Select *h_louver_select_{nullptr};
 };

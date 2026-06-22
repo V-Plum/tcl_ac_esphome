@@ -190,14 +190,6 @@ void TCLACClimate::setup() {
   this->current_temperature = NAN;
   this->publish_state();
   this->publish_aux_();
-  if (this->v_louver_select_) {
-    auto &opts = this->v_louver_select_->traits.get_options();
-    if (!opts.empty()) this->v_louver_select_->publish_state(opts[0]);
-  }
-  if (this->h_louver_select_) {
-    auto &opts = this->h_louver_select_->traits.get_options();
-    if (!opts.empty()) this->h_louver_select_->publish_state(opts[0]);
-  }
   reset_rx_();
   ESP_LOGI(TAG, "TCL Ocarina AC ready");
 }
@@ -409,6 +401,42 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
            this->fan_mode.has_value() ? (int) this->fan_mode.value() : -1,
            this->current_temperature,
            this->target_temperature);
+
+  // Louver state: RX[51]=vertical, RX[52]=horizontal — same bit encoding as TX[32]/TX[33]
+  if (len > 52) {
+    uint8_t new_v;
+    switch (d[51]) {
+      case 0x01: new_v = 4; break;  case 0x02: new_v = 5; break;
+      case 0x03: new_v = 6; break;  case 0x04: new_v = 7; break;
+      case 0x05: new_v = 8; break;
+      case 0x08: new_v = 1; break;  case 0x10: new_v = 2; break;
+      case 0x18: new_v = 3; break;
+      default:   new_v = 0; break;
+    }
+    uint8_t new_h;
+    switch (d[52]) {
+      case 0x01: new_h = 5; break;  case 0x02: new_h = 6; break;
+      case 0x03: new_h = 7; break;  case 0x04: new_h = 8; break;
+      case 0x05: new_h = 9; break;
+      case 0x08: new_h = 1; break;  case 0x10: new_h = 2; break;
+      case 0x18: new_h = 3; break;  case 0x20: new_h = 4; break;
+      default:   new_h = 0; break;
+    }
+    if (new_v != this->v_louver_) {
+      this->v_louver_ = new_v;
+      if (this->v_louver_select_) {
+        const auto &opts = this->v_louver_select_->traits.get_options();
+        if (new_v < opts.size()) this->v_louver_select_->publish_state(opts[new_v]);
+      }
+    }
+    if (new_h != this->h_louver_) {
+      this->h_louver_ = new_h;
+      if (this->h_louver_select_) {
+        const auto &opts = this->h_louver_select_->traits.get_options();
+        if (new_h < opts.size()) this->h_louver_select_->publish_state(opts[new_h]);
+      }
+    }
+  }
 }
 
 // ============================================================
