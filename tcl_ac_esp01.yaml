@@ -15,11 +15,11 @@ logger:
 
 api:
   encryption:
-    key: !secret api_encryption_key
+    key: !secret tcl_ac_api_key
 
 ota:
   - platform: esphome
-    password: !secret ota_password
+    password: !secret tcl_ac_ota_password
 
 # improv_serial: lets the ESPHome web flasher provision WiFi credentials
 # over USB during initial flash — no YAML edit needed per device
@@ -29,7 +29,7 @@ wifi:
   # No hardcoded credentials: improv_serial or captive portal handles first-time setup
   ap:
     ssid: "TCL AC Setup"
-    password: !secret ap_password   # protects the setup AP from open access
+    password: !secret tcl_ac_fallback_password
 
 captive_portal:
 
