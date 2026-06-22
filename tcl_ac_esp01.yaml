@@ -21,10 +21,6 @@ ota:
   - platform: esphome
     password: !secret tcl_ac_ota_password
 
-# improv_serial: lets the ESPHome web flasher provision WiFi credentials
-# over USB during initial flash — no YAML edit needed per device
-improv_serial:
-
 wifi:
   # No hardcoded credentials: improv_serial or captive portal handles first-time setup
   ap:
