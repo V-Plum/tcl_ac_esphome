@@ -1,0 +1,73 @@
+substitutions:
+  friendly_name: TCL Ocarina AC
+
+esphome:
+  name: tcl-ac
+  friendly_name: ${friendly_name}
+  name_add_mac_suffix: true   # each chip gets a unique hostname: tcl-ac-a1b2c3
+
+esp8266:
+  board: esp01_1m
+
+# Serial logger disabled — ESP-01 GPIO1/GPIO3 are used by the AC UART
+logger:
+  baud_rate: 0
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# improv_serial: lets the ESPHome web flasher provision WiFi credentials
+# over USB during initial flash — no YAML edit needed per device
+improv_serial:
+
+wifi:
+  # No hardcoded credentials: improv_serial or captive portal handles first-time setup
+  ap:
+    ssid: "TCL AC Setup"
+    password: !secret ap_password   # protects the setup AP from open access
+
+captive_portal:
+
+# UART to the AC indoor unit — 9600 8E1, ESP-01 hardware UART pins
+uart:
+  id: ac_uart
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 9600
+  data_bits: 8
+  parity: EVEN
+  stop_bits: 1
+
+external_components:
+  # For local development, replace with:
+  #   source: { type: local, path: . }
+  - source: github://V-Plum/tcl_ac_esphome
+    components: [tcl_ac]
+
+climate:
+  - platform: tcl_ac
+    name: "${friendly_name}"
+    id: ac
+    uart_id: ac_uart
+
+switch:
+  - platform: tcl_ac
+    name: "${friendly_name} Display"
+    id: ac_display
+    tcl_ac_id: ac
+    type: display
+    icon: mdi:television-ambient-light
+    restore_mode: RESTORE_DEFAULT_ON
+
+  - platform: tcl_ac
+    name: "${friendly_name} Beeper"
+    id: ac_beeper
+    tcl_ac_id: ac
+    type: beeper
+    icon: mdi:volume-high
+    restore_mode: RESTORE_DEFAULT_ON
