@@ -99,7 +99,7 @@ void TCLACClimate::build_control_frame_() {
   if (this->mode != climate::CLIMATE_MODE_OFF) this->tx_[7] |= TX7_POWER;
   if (this->display_on_)     this->tx_[7] |= TX7_DISPLAY;
   if (this->beeper_on_)      this->tx_[7] |= TX7_BEEP;
-  if (this->gentle_wind_on_) this->tx_[11] |= 0x20;  // SEARCH: TX candidate bit5 byte11
+  if (this->gentle_wind_on_) this->tx_[10] |= 0x80;  // SEARCH: TX candidate bit7 byte10
 
   const auto pr = this->preset.has_value() ? this->preset.value() : climate::CLIMATE_PRESET_NONE;
   if (pr == climate::CLIMATE_PRESET_ECO) this->tx_[7] |= TX7_ECO;
@@ -175,12 +175,12 @@ void TCLACClimate::build_control_frame_() {
 void TCLACClimate::send_control_frame_() {
   this->build_control_frame_();
   this->write_array(this->tx_, sizeof(this->tx_));
-  ESP_LOGD(TAG, "TX CTRL mode=%d fan=%d preset=%d v=%d h=%d b7=0x%02X b8=0x%02X b10=0x%02X b31=0x%02X tgt=%.1f",
+  ESP_LOGD(TAG, "TX CTRL mode=%d fan=%d preset=%d v=%d h=%d b7=0x%02X b8=0x%02X b10=0x%02X b11=0x%02X b31=0x%02X tgt=%.1f",
            (int) this->mode,
            this->fan_mode.has_value() ? (int) this->fan_mode.value() : -1,
            this->preset.has_value() ? (int) this->preset.value() : -1,
            this->v_louver_, this->h_louver_,
-           this->tx_[7], this->tx_[8], this->tx_[10], this->tx_[31],
+           this->tx_[7], this->tx_[8], this->tx_[10], this->tx_[11], this->tx_[31],
            this->target_temperature);
 }
 
