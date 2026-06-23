@@ -48,13 +48,13 @@ external_components:
 
 climate:
   - platform: tcl_ac
-    name: "${friendly_name}"
+    name: "Air Conditioner"
     id: ac
     uart_id: ac_uart
 
 switch:
   - platform: tcl_ac
-    name: "${friendly_name} Display"
+    name: "Display"
     id: ac_display
     tcl_ac_id: ac
     type: display
@@ -62,7 +62,7 @@ switch:
     restore_mode: RESTORE_DEFAULT_ON
 
   - platform: tcl_ac
-    name: "${friendly_name} Beeper"
+    name: "Beeper"
     id: ac_beeper
     tcl_ac_id: ac
     type: beeper
@@ -70,23 +70,24 @@ switch:
     restore_mode: RESTORE_DEFAULT_ON
 
   - platform: tcl_ac
-    name: "${friendly_name} Gentle Wind"
+    name: "Gentle Wind"
     id: ac_gentle_wind
     tcl_ac_id: ac
     type: gentle_wind
     icon: mdi:weather-windy
     restore_mode: RESTORE_DEFAULT_OFF
 
+
 select:
   - platform: tcl_ac
-    name: "${friendly_name} Vertical Louver"
+    name: "Vertical Louver"
     id: ac_v_louver
     tcl_ac_id: ac
     type: vertical_louver
     icon: mdi:arrow-up-down
 
   - platform: tcl_ac
-    name: "${friendly_name} Horizontal Louver"
+    name: "Horizontal Louver"
     id: ac_h_louver
     tcl_ac_id: ac
     type: horizontal_louver

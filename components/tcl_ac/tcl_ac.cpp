@@ -24,9 +24,9 @@ constexpr uint8_t TX7_DISPLAY = 0b01000000;  // bit6 — panel display on/off
 constexpr uint8_t TX7_BEEP    = 0b00100000;  // bit5 — beeper on/off
 constexpr uint8_t TX7_POWER   = 0b00000100;  // bit2 — power on
 
-// ---- TX byte 8  (MSB→LSB: quiet | diffuse | 0 | comfort | mode[3:0]) ----
+// ---- TX byte 8  (MSB→LSB: quiet | diffuse/turbo | ? | comfort | mode[3:0]) ----
 constexpr uint8_t TX8_QUIET   = 0b10000000;  // bit7 — quiet/mute fan
-constexpr uint8_t TX8_DIFFUSE = 0b01000000;  // bit6 — diffuse fan
+constexpr uint8_t TX8_DIFFUSE = 0b01000000;  // bit6 — diffuse fan (remote labels this "Turbo")
 constexpr uint8_t TX8_COMFORT = 0b00010000;  // bit4 — COMFORT preset (health mode)
 
 constexpr uint8_t TX8_MODE_AUTO = 0b00001000;
@@ -51,9 +51,6 @@ constexpr uint8_t TX11_SWING_H = 0b00001000;
 // ---- TX byte 19  (bit0: SLEEP preset) ----
 constexpr uint8_t TX19_SLEEP = 0b00000001;
 
-// ---- TX byte 31  (bit5: gentle wind) ----
-// Derived from RX[50] bit5=0x20 which mirrors TX via the same +19 offset as TX[32]→RX[51]
-constexpr uint8_t TX31_GENTLE_WIND = 0b00100000;
 
 }  // namespace
 
@@ -420,7 +417,6 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
            this->fan_mode.has_value() ? (int) this->fan_mode.value() : -1,
            this->current_temperature,
            this->target_temperature);
-
   // Gentle Wind: RX[50] bit5 (0x20) — confirmed by remote toggle capture
   if (len > 50) {
     const bool gw = (d[50] & 0x20) != 0;
