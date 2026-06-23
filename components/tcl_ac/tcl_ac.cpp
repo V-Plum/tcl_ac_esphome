@@ -99,7 +99,7 @@ void TCLACClimate::build_control_frame_() {
   if (this->mode != climate::CLIMATE_MODE_OFF) this->tx_[7] |= TX7_POWER;
   if (this->display_on_)     this->tx_[7] |= TX7_DISPLAY;
   if (this->beeper_on_)      this->tx_[7] |= TX7_BEEP;
-  if (this->gentle_wind_on_) this->tx_[8] |= TX8_DIFFUSE;
+  if (this->gentle_wind_on_) this->tx_[8] |= 0x20;  // SEARCH: TX candidate bit5 byte8
 
   const auto pr = this->preset.has_value() ? this->preset.value() : climate::CLIMATE_PRESET_NONE;
   if (pr == climate::CLIMATE_PRESET_ECO) this->tx_[7] |= TX7_ECO;
@@ -122,6 +122,7 @@ void TCLACClimate::build_control_frame_() {
   const auto fan = this->fan_mode.has_value() ? this->fan_mode.value() : climate::CLIMATE_FAN_AUTO;
   switch (fan) {
     case climate::CLIMATE_FAN_QUIET:   this->tx_[8]  |= TX8_QUIET;              break;
+    case climate::CLIMATE_FAN_DIFFUSE: this->tx_[8]  |= TX8_DIFFUSE;            break;
     case climate::CLIMATE_FAN_LOW:     this->tx_[10] |= TX10_FAN_LOW;           break;
     case climate::CLIMATE_FAN_MEDIUM:  this->tx_[10] |= TX10_FAN_MEDIUM;        break;
     case climate::CLIMATE_FAN_MIDDLE:  this->tx_[10] |= TX10_FAN_MIDDLE;        break;
@@ -276,6 +277,7 @@ climate::ClimateTraits TCLACClimate::traits() {
       climate::CLIMATE_FAN_MIDDLE,
       climate::CLIMATE_FAN_FOCUS,
       climate::CLIMATE_FAN_QUIET,
+      climate::CLIMATE_FAN_DIFFUSE,
   });
 
   t.set_supported_presets({
