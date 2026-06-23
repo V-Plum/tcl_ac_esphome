@@ -99,7 +99,7 @@ void TCLACClimate::build_control_frame_() {
   if (this->mode != climate::CLIMATE_MODE_OFF) this->tx_[7] |= TX7_POWER;
   if (this->display_on_)     this->tx_[7] |= TX7_DISPLAY;
   if (this->beeper_on_)      this->tx_[7] |= TX7_BEEP;
-  if (this->gentle_wind_on_) this->tx_[11] |= 0x10;  // SEARCH: TX candidate bit4 byte11
+  if (this->gentle_wind_on_) this->tx_[11] |= 0x20;  // SEARCH: TX candidate bit5 byte11
 
   const auto pr = this->preset.has_value() ? this->preset.value() : climate::CLIMATE_PRESET_NONE;
   if (pr == climate::CLIMATE_PRESET_ECO) this->tx_[7] |= TX7_ECO;
