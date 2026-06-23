@@ -50,6 +50,10 @@ constexpr uint8_t TX11_SWING_H = 0b00001000;
 // ---- TX byte 19  (bit0: SLEEP preset) ----
 constexpr uint8_t TX19_SLEEP = 0b00000001;
 
+// ---- TX byte 31  (bit5: gentle wind) ----
+// Derived from RX[50] bit5=0x20 which mirrors TX via the same +19 offset as TX[32]→RX[51]
+constexpr uint8_t TX31_GENTLE_WIND = 0b00100000;
+
 }  // namespace
 
 // ============================================================
@@ -95,7 +99,7 @@ void TCLACClimate::build_control_frame_() {
   if (this->mode != climate::CLIMATE_MODE_OFF) this->tx_[7] |= TX7_POWER;
   if (this->display_on_)     this->tx_[7] |= TX7_DISPLAY;
   if (this->beeper_on_)      this->tx_[7] |= TX7_BEEP;
-  if (this->gentle_wind_on_) this->tx_[8] |= TX8_DIFFUSE;
+  if (this->gentle_wind_on_) this->tx_[31] |= TX31_GENTLE_WIND;
 
   const auto pr = this->preset.has_value() ? this->preset.value() : climate::CLIMATE_PRESET_NONE;
   if (pr == climate::CLIMATE_PRESET_ECO) this->tx_[7] |= TX7_ECO;
@@ -170,12 +174,12 @@ void TCLACClimate::build_control_frame_() {
 void TCLACClimate::send_control_frame_() {
   this->build_control_frame_();
   this->write_array(this->tx_, sizeof(this->tx_));
-  ESP_LOGD(TAG, "TX CTRL mode=%d fan=%d preset=%d v=%d h=%d b7=0x%02X b8=0x%02X b10=0x%02X tgt=%.1f",
+  ESP_LOGD(TAG, "TX CTRL mode=%d fan=%d preset=%d v=%d h=%d b7=0x%02X b8=0x%02X b10=0x%02X b31=0x%02X tgt=%.1f",
            (int) this->mode,
            this->fan_mode.has_value() ? (int) this->fan_mode.value() : -1,
            this->preset.has_value() ? (int) this->preset.value() : -1,
            this->v_louver_, this->h_louver_,
-           this->tx_[7], this->tx_[8], this->tx_[10],
+           this->tx_[7], this->tx_[8], this->tx_[10], this->tx_[31],
            this->target_temperature);
 }
 
@@ -421,6 +425,15 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
     ESP_LOGD(TAG, "RX[40-60]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
              d[40],d[41],d[42],d[43],d[44],d[45],d[46],d[47],
              d[48],d[49],d[50],d[51],d[52],d[53],d[54],d[55],d[56],d[57],d[58],d[59],d[60]);
+  }
+
+  // Gentle Wind: RX[50] bit5 (0x20) — confirmed by remote toggle capture
+  if (len > 50) {
+    const bool gw = (d[50] & 0x20) != 0;
+    if (gw != this->gentle_wind_on_) {
+      this->gentle_wind_on_ = gw;
+      if (this->gentle_wind_switch_) this->gentle_wind_switch_->publish_state(gw);
+    }
   }
 
   // Louver state: RX[51]=vertical, RX[52]=horizontal — same bit encoding as TX[32]/TX[33]
