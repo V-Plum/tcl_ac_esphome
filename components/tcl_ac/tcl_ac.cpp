@@ -99,7 +99,12 @@ void TCLACClimate::build_control_frame_() {
   if (this->mode != climate::CLIMATE_MODE_OFF) this->tx_[7] |= TX7_POWER;
   if (this->display_on_)     this->tx_[7] |= TX7_DISPLAY;
   if (this->beeper_on_)      this->tx_[7] |= TX7_BEEP;
-  if (this->gentle_wind_on_) this->tx_[10] |= 0x40;  // SEARCH: TX candidate bit6 byte10
+  if (this->gentle_wind_on_) {
+    // SEARCH batch A: TX[14], TX[34], TX[35] — first unexplored ranges
+    this->tx_[14] |= 0x20;
+    this->tx_[34] |= 0x20;
+    this->tx_[35] |= 0x20;
+  }
 
   const auto pr = this->preset.has_value() ? this->preset.value() : climate::CLIMATE_PRESET_NONE;
   if (pr == climate::CLIMATE_PRESET_ECO) this->tx_[7] |= TX7_ECO;
@@ -175,13 +180,22 @@ void TCLACClimate::build_control_frame_() {
 void TCLACClimate::send_control_frame_() {
   this->build_control_frame_();
   this->write_array(this->tx_, sizeof(this->tx_));
-  ESP_LOGD(TAG, "TX CTRL mode=%d fan=%d preset=%d v=%d h=%d b7=0x%02X b8=0x%02X b10=0x%02X b11=0x%02X b31=0x%02X tgt=%.1f",
+  ESP_LOGD(TAG, "TX CTRL mode=%d fan=%d preset=%d v=%d h=%d tgt=%.1f",
            (int) this->mode,
            this->fan_mode.has_value() ? (int) this->fan_mode.value() : -1,
            this->preset.has_value() ? (int) this->preset.value() : -1,
            this->v_louver_, this->h_louver_,
-           this->tx_[7], this->tx_[8], this->tx_[10], this->tx_[11], this->tx_[31],
            this->target_temperature);
+  ESP_LOGD(TAG, "TX[ 0-19]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+           this->tx_[0],  this->tx_[1],  this->tx_[2],  this->tx_[3],  this->tx_[4],
+           this->tx_[5],  this->tx_[6],  this->tx_[7],  this->tx_[8],  this->tx_[9],
+           this->tx_[10], this->tx_[11], this->tx_[12], this->tx_[13], this->tx_[14],
+           this->tx_[15], this->tx_[16], this->tx_[17], this->tx_[18], this->tx_[19]);
+  ESP_LOGD(TAG, "TX[20-37]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+           this->tx_[20], this->tx_[21], this->tx_[22], this->tx_[23], this->tx_[24],
+           this->tx_[25], this->tx_[26], this->tx_[27], this->tx_[28], this->tx_[29],
+           this->tx_[30], this->tx_[31], this->tx_[32], this->tx_[33], this->tx_[34],
+           this->tx_[35], this->tx_[36], this->tx_[37]);
 }
 
 // ============================================================
