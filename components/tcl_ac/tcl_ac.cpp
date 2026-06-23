@@ -411,15 +411,16 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
            this->fan_mode.has_value() ? (int) this->fan_mode.value() : -1,
            this->current_temperature,
            this->target_temperature);
-  if (len >= 61)
-    ESP_LOGD(TAG, "RX[ 7-19]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
-             d[7],d[8],d[9],d[10],d[11],d[12],d[13],d[14],d[15],d[16],d[17],d[18],d[19]);
-
-  // Gentle Wind: RX byte 10 bit 5
-  const bool gw = (d[10] & 0x20) != 0;
-  if (gw != this->gentle_wind_on_) {
-    this->gentle_wind_on_ = gw;
-    if (this->gentle_wind_switch_) this->gentle_wind_switch_->publish_state(gw);
+  if (len >= 61) {
+    ESP_LOGD(TAG, "RX[ 0-19]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+             d[0],d[1],d[2],d[3],d[4],d[5],d[6],d[7],d[8],d[9],
+             d[10],d[11],d[12],d[13],d[14],d[15],d[16],d[17],d[18],d[19]);
+    ESP_LOGD(TAG, "RX[20-39]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+             d[20],d[21],d[22],d[23],d[24],d[25],d[26],d[27],
+             d[28],d[29],d[30],d[31],d[32],d[33],d[34],d[35],d[36],d[37],d[38],d[39]);
+    ESP_LOGD(TAG, "RX[40-60]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+             d[40],d[41],d[42],d[43],d[44],d[45],d[46],d[47],
+             d[48],d[49],d[50],d[51],d[52],d[53],d[54],d[55],d[56],d[57],d[58],d[59],d[60]);
   }
 
   // Louver state: RX[51]=vertical, RX[52]=horizontal — same bit encoding as TX[32]/TX[33]
