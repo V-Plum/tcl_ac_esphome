@@ -105,6 +105,9 @@ class TCLACClimate : public climate::Climate, public uart::UARTDevice, public Co
   bool display_on_{true};
   bool beeper_on_{true};
   bool gentle_wind_on_{false};
+  bool     pending_gw_{false};
+  bool     pending_gw_value_{false};
+  uint32_t pending_gw_until_ms_{0};
   switch_::Switch *display_switch_{nullptr};
   switch_::Switch *beeper_switch_{nullptr};
   switch_::Switch *gentle_wind_switch_{nullptr};

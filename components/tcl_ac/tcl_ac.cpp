@@ -35,8 +35,9 @@ constexpr uint8_t TX8_MODE_DRY  = 0b00000010;
 constexpr uint8_t TX8_MODE_FAN  = 0b00000111;
 constexpr uint8_t TX8_MODE_HEAT = 0b00000001;
 
-// ---- TX byte 10  (bits 5-3: vertical swing, bits 2-0: fan speed) ----
-constexpr uint8_t TX10_SWING_V = 0b00111000;  // bits 3-5: vertical swing active
+// ---- TX byte 10  (bit6: gentle wind, bits 5-3: vertical swing, bits 2-0: fan speed) ----
+constexpr uint8_t TX10_GENTLE_WIND = 0b01000000;  // bit6 — Gentle Wind mode
+constexpr uint8_t TX10_SWING_V     = 0b00111000;  // bits 3-5: vertical swing active
 constexpr uint8_t TX10_FAN_AUTO   = 0b000;
 constexpr uint8_t TX10_FAN_LOW    = 0b001;
 constexpr uint8_t TX10_FAN_MEDIUM = 0b011;
@@ -99,12 +100,7 @@ void TCLACClimate::build_control_frame_() {
   if (this->mode != climate::CLIMATE_MODE_OFF) this->tx_[7] |= TX7_POWER;
   if (this->display_on_)     this->tx_[7] |= TX7_DISPLAY;
   if (this->beeper_on_)      this->tx_[7] |= TX7_BEEP;
-  if (this->gentle_wind_on_) {
-    // SEARCH batch A: TX[14], TX[34], TX[35] — first unexplored ranges
-    this->tx_[14] |= 0x20;
-    this->tx_[34] |= 0x20;
-    this->tx_[35] |= 0x20;
-  }
+  if (this->gentle_wind_on_) this->tx_[10] |= TX10_GENTLE_WIND;
 
   const auto pr = this->preset.has_value() ? this->preset.value() : climate::CLIMATE_PRESET_NONE;
   if (pr == climate::CLIMATE_PRESET_ECO) this->tx_[7] |= TX7_ECO;
@@ -186,16 +182,6 @@ void TCLACClimate::send_control_frame_() {
            this->preset.has_value() ? (int) this->preset.value() : -1,
            this->v_louver_, this->h_louver_,
            this->target_temperature);
-  ESP_LOGD(TAG, "TX[ 0-19]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
-           this->tx_[0],  this->tx_[1],  this->tx_[2],  this->tx_[3],  this->tx_[4],
-           this->tx_[5],  this->tx_[6],  this->tx_[7],  this->tx_[8],  this->tx_[9],
-           this->tx_[10], this->tx_[11], this->tx_[12], this->tx_[13], this->tx_[14],
-           this->tx_[15], this->tx_[16], this->tx_[17], this->tx_[18], this->tx_[19]);
-  ESP_LOGD(TAG, "TX[20-37]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
-           this->tx_[20], this->tx_[21], this->tx_[22], this->tx_[23], this->tx_[24],
-           this->tx_[25], this->tx_[26], this->tx_[27], this->tx_[28], this->tx_[29],
-           this->tx_[30], this->tx_[31], this->tx_[32], this->tx_[33], this->tx_[34],
-           this->tx_[35], this->tx_[36], this->tx_[37]);
 }
 
 // ============================================================
@@ -237,8 +223,11 @@ void TCLACSwitch::write_state(bool state) {
 
 void TCLACClimate::set_gentle_wind_on(bool on) {
   if (this->gentle_wind_on_ == on) { if (this->gentle_wind_switch_) this->gentle_wind_switch_->publish_state(on); return; }
-  this->gentle_wind_on_ = on;
   const uint32_t now = millis();
+  this->gentle_wind_on_      = on;
+  this->pending_gw_          = true;
+  this->pending_gw_value_    = on;
+  this->pending_gw_until_ms_ = now + 1500;
   this->send_control_frame_();
   this->arm_resend_(now, 2);
   if (this->gentle_wind_switch_) this->gentle_wind_switch_->publish_state(on);
@@ -431,24 +420,21 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
            this->fan_mode.has_value() ? (int) this->fan_mode.value() : -1,
            this->current_temperature,
            this->target_temperature);
-  if (len >= 61) {
-    ESP_LOGD(TAG, "RX[ 0-19]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
-             d[0],d[1],d[2],d[3],d[4],d[5],d[6],d[7],d[8],d[9],
-             d[10],d[11],d[12],d[13],d[14],d[15],d[16],d[17],d[18],d[19]);
-    ESP_LOGD(TAG, "RX[20-39]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
-             d[20],d[21],d[22],d[23],d[24],d[25],d[26],d[27],
-             d[28],d[29],d[30],d[31],d[32],d[33],d[34],d[35],d[36],d[37],d[38],d[39]);
-    ESP_LOGD(TAG, "RX[40-60]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
-             d[40],d[41],d[42],d[43],d[44],d[45],d[46],d[47],
-             d[48],d[49],d[50],d[51],d[52],d[53],d[54],d[55],d[56],d[57],d[58],d[59],d[60]);
-  }
 
   // Gentle Wind: RX[50] bit5 (0x20) — confirmed by remote toggle capture
   if (len > 50) {
     const bool gw = (d[50] & 0x20) != 0;
-    if (gw != this->gentle_wind_on_) {
-      this->gentle_wind_on_ = gw;
-      if (this->gentle_wind_switch_) this->gentle_wind_switch_->publish_state(gw);
+    if (this->pending_gw_ && (int32_t)(now - this->pending_gw_until_ms_) < 0) {
+      if (gw == this->pending_gw_value_)
+        this->pending_gw_ = false;                            // AC confirmed our command
+      else
+        this->gentle_wind_on_ = this->pending_gw_value_;     // hold commanded state, don't flip resend
+    } else {
+      this->pending_gw_ = false;
+      if (gw != this->gentle_wind_on_) {
+        this->gentle_wind_on_ = gw;
+        if (this->gentle_wind_switch_) this->gentle_wind_switch_->publish_state(gw);
+      }
     }
   }
 
