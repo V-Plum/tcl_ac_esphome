@@ -93,8 +93,9 @@ void TCLACClimate::build_control_frame_() {
 
   // ---- Byte 7: power, display, beeper, ECO ----
   if (this->mode != climate::CLIMATE_MODE_OFF) this->tx_[7] |= TX7_POWER;
-  if (this->display_on_) this->tx_[7] |= TX7_DISPLAY;
-  if (this->beeper_on_)  this->tx_[7] |= TX7_BEEP;
+  if (this->display_on_)     this->tx_[7] |= TX7_DISPLAY;
+  if (this->beeper_on_)      this->tx_[7] |= TX7_BEEP;
+  if (this->gentle_wind_on_) this->tx_[8] |= TX8_DIFFUSE;
 
   const auto pr = this->preset.has_value() ? this->preset.value() : climate::CLIMATE_PRESET_NONE;
   if (pr == climate::CLIMATE_PRESET_ECO) this->tx_[7] |= TX7_ECO;
@@ -117,7 +118,6 @@ void TCLACClimate::build_control_frame_() {
   const auto fan = this->fan_mode.has_value() ? this->fan_mode.value() : climate::CLIMATE_FAN_AUTO;
   switch (fan) {
     case climate::CLIMATE_FAN_QUIET:   this->tx_[8]  |= TX8_QUIET;              break;
-    case climate::CLIMATE_FAN_DIFFUSE: this->tx_[8]  |= TX8_DIFFUSE;            break;
     case climate::CLIMATE_FAN_LOW:     this->tx_[10] |= TX10_FAN_LOW;           break;
     case climate::CLIMATE_FAN_MEDIUM:  this->tx_[10] |= TX10_FAN_MEDIUM;        break;
     case climate::CLIMATE_FAN_MIDDLE:  this->tx_[10] |= TX10_FAN_MIDDLE;        break;
@@ -210,8 +210,19 @@ void TCLACSwitch::write_state(bool state) {
   if (this->parent_ == nullptr) { this->publish_state(state); return; }
   if (this->type_ == TCLACSwitchType::DISPLAY_ON)
     this->parent_->set_display_on(state);
-  else
+  else if (this->type_ == TCLACSwitchType::BEEPER_ON)
     this->parent_->set_beeper_on(state);
+  else
+    this->parent_->set_gentle_wind_on(state);
+}
+
+void TCLACClimate::set_gentle_wind_on(bool on) {
+  if (this->gentle_wind_on_ == on) { if (this->gentle_wind_switch_) this->gentle_wind_switch_->publish_state(on); return; }
+  this->gentle_wind_on_ = on;
+  const uint32_t now = millis();
+  this->send_control_frame_();
+  this->arm_resend_(now, 2);
+  if (this->gentle_wind_switch_) this->gentle_wind_switch_->publish_state(on);
 }
 
 void TCLACClimate::publish_aux_() {
@@ -260,7 +271,6 @@ climate::ClimateTraits TCLACClimate::traits() {
       climate::CLIMATE_FAN_HIGH,
       climate::CLIMATE_FAN_MIDDLE,
       climate::CLIMATE_FAN_FOCUS,
-      climate::CLIMATE_FAN_DIFFUSE,
       climate::CLIMATE_FAN_QUIET,
   });
 
@@ -401,6 +411,16 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
            this->fan_mode.has_value() ? (int) this->fan_mode.value() : -1,
            this->current_temperature,
            this->target_temperature);
+  if (len >= 61)
+    ESP_LOGD(TAG, "RX[ 7-19]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+             d[7],d[8],d[9],d[10],d[11],d[12],d[13],d[14],d[15],d[16],d[17],d[18],d[19]);
+
+  // Gentle Wind: RX byte 10 bit 5
+  const bool gw = (d[10] & 0x20) != 0;
+  if (gw != this->gentle_wind_on_) {
+    this->gentle_wind_on_ = gw;
+    if (this->gentle_wind_switch_) this->gentle_wind_switch_->publish_state(gw);
+  }
 
   // Louver state: RX[51]=vertical, RX[52]=horizontal — same bit encoding as TX[32]/TX[33]
   if (len > 52) {

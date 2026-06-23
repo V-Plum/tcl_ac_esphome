@@ -12,8 +12,9 @@ namespace tcl_ac {
 // NOTE: Do NOT name anything "DISPLAY" — ESP8266 Arduino core defines a DISPLAY macro.
 
 enum TCLACSwitchType : uint8_t {
-  DISPLAY_ON = 0,
-  BEEPER_ON  = 1,
+  DISPLAY_ON   = 0,
+  BEEPER_ON    = 1,
+  GENTLE_WIND  = 2,
 };
 
 enum TCLACSelectType : uint8_t {
@@ -56,10 +57,13 @@ class TCLACClimate : public climate::Climate, public uart::UARTDevice, public Co
 
   void set_display_on(bool on);
   void set_beeper_on(bool on);
-  bool get_display_on() const { return this->display_on_; }
-  bool get_beeper_on() const  { return this->beeper_on_;  }
-  void set_display_switch(switch_::Switch *sw) { this->display_switch_ = sw; }
-  void set_beeper_switch(switch_::Switch *sw)  { this->beeper_switch_  = sw; }
+  void set_gentle_wind_on(bool on);
+  bool get_display_on()     const { return this->display_on_; }
+  bool get_beeper_on()      const { return this->beeper_on_;  }
+  bool get_gentle_wind_on() const { return this->gentle_wind_on_; }
+  void set_display_switch(switch_::Switch *sw)     { this->display_switch_     = sw; }
+  void set_beeper_switch(switch_::Switch *sw)      { this->beeper_switch_      = sw; }
+  void set_gentle_wind_switch(switch_::Switch *sw) { this->gentle_wind_switch_ = sw; }
 
   void set_vertical_louver(uint8_t idx);
   void set_horizontal_louver(uint8_t idx);
@@ -100,8 +104,10 @@ class TCLACClimate : public climate::Climate, public uart::UARTDevice, public Co
 
   bool display_on_{true};
   bool beeper_on_{true};
+  bool gentle_wind_on_{false};
   switch_::Switch *display_switch_{nullptr};
   switch_::Switch *beeper_switch_{nullptr};
+  switch_::Switch *gentle_wind_switch_{nullptr};
 
   // 0xFF = unknown (not yet received from AC); 0 = off/last; see TCLACSelect comment above
   uint8_t v_louver_{0xFF};

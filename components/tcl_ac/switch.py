@@ -11,8 +11,9 @@ TCLACSwitch = tcl_ac_ns.class_("TCLACSwitch", switch.Switch)
 TCLACSwitchType = tcl_ac_ns.enum("TCLACSwitchType")
 
 SWITCH_TYPES = {
-    "display": TCLACSwitchType.DISPLAY_ON,
-    "beeper":  TCLACSwitchType.BEEPER_ON,
+    "display":      TCLACSwitchType.DISPLAY_ON,
+    "beeper":       TCLACSwitchType.BEEPER_ON,
+    "gentle_wind":  TCLACSwitchType.GENTLE_WIND,
 }
 
 CONFIG_SCHEMA = switch.switch_schema(TCLACSwitch).extend(
@@ -34,5 +35,7 @@ async def to_code(config):
 
     if config[CONF_TYPE] == "display":
         cg.add(parent.set_display_switch(var))
-    else:
+    elif config[CONF_TYPE] == "beeper":
         cg.add(parent.set_beeper_switch(var))
+    else:
+        cg.add(parent.set_gentle_wind_switch(var))
