@@ -353,7 +353,7 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
   if (!power_on) {
     this->mode = climate::CLIMATE_MODE_OFF;
   } else {
-    switch (d[RX_MODE_POS] & RX_MODE_MASK) {
+    switch ((d[RX_MODE_POS] & RX_MODE_MASK) | 0x20) {  // bit5 clears when display off; force it for mode lookup
       case RX_MODE_AUTO: this->mode = climate::CLIMATE_MODE_HEAT_COOL; break;
       case RX_MODE_COOL: this->mode = climate::CLIMATE_MODE_COOL;      break;
       case RX_MODE_DRY:  this->mode = climate::CLIMATE_MODE_DRY;       break;
