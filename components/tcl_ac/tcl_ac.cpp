@@ -117,17 +117,15 @@ void TCLACClimate::build_control_frame_() {
   }
 
   // ---- Bytes 8 + 10: fan speed ----
-  const auto fan = this->fan_mode.has_value() ? this->fan_mode.value() : climate::CLIMATE_FAN_AUTO;
-  switch (fan) {
-    case climate::CLIMATE_FAN_QUIET:   this->tx_[8]  |= TX8_QUIET;              break;
-    case climate::CLIMATE_FAN_DIFFUSE: this->tx_[8]  |= TX8_DIFFUSE;            break;
-    case climate::CLIMATE_FAN_LOW:     this->tx_[10] |= TX10_FAN_LOW;           break;
-    case climate::CLIMATE_FAN_MEDIUM:  this->tx_[10] |= TX10_FAN_MEDIUM;        break;
-    case climate::CLIMATE_FAN_MIDDLE:  this->tx_[10] |= TX10_FAN_MIDDLE;        break;
-    case climate::CLIMATE_FAN_HIGH:    this->tx_[10] |= TX10_FAN_HIGH;          break;
-    case climate::CLIMATE_FAN_FOCUS:   this->tx_[10] |= TX10_FAN_FOCUS;         break;
-    default: /* AUTO = 0, already zeroed */                                       break;
-  }
+  const auto &cfm = this->custom_fan_mode.value_or("Авто");
+  if      (cfm == "Тихо")     this->tx_[8]  |= TX8_QUIET;
+  else if (cfm == "Дифузний") this->tx_[8]  |= TX8_DIFFUSE;
+  else if (cfm == "Низька")   this->tx_[10] |= TX10_FAN_LOW;
+  else if (cfm == "Середня")  this->tx_[10] |= TX10_FAN_MEDIUM;
+  else if (cfm == "Середній") this->tx_[10] |= TX10_FAN_MIDDLE;
+  else if (cfm == "Висока")   this->tx_[10] |= TX10_FAN_HIGH;
+  else if (cfm == "Фокус")    this->tx_[10] |= TX10_FAN_FOCUS;
+  /* else "Авто" = 0, already zeroed */
 
   // ---- TX[10] bits 5-3 / TX[32]: vertical louver ----
   // ---- TX[11] bit 3   / TX[33]: horizontal louver ----
@@ -173,9 +171,9 @@ void TCLACClimate::build_control_frame_() {
 void TCLACClimate::send_control_frame_() {
   this->build_control_frame_();
   this->write_array(this->tx_, sizeof(this->tx_));
-  ESP_LOGD(TAG, "TX CTRL mode=%d fan=%d preset=%d v=%d h=%d tgt=%.1f",
+  ESP_LOGD(TAG, "TX CTRL mode=%d fan=%s preset=%d v=%d h=%d tgt=%.1f",
            (int) this->mode,
-           this->fan_mode.has_value() ? (int) this->fan_mode.value() : -1,
+           this->custom_fan_mode.value_or("?").c_str(),
            this->preset.has_value() ? (int) this->preset.value() : -1,
            this->v_louver_, this->h_louver_,
            this->target_temperature);
@@ -186,8 +184,8 @@ void TCLACClimate::send_control_frame_() {
 // ============================================================
 
 void TCLACClimate::setup() {
-  this->mode         = climate::CLIMATE_MODE_OFF;
-  this->fan_mode     = climate::CLIMATE_FAN_AUTO;
+  this->mode            = climate::CLIMATE_MODE_OFF;
+  this->custom_fan_mode = "Авто";
   this->target_temperature = 24.0f;
   this->current_temperature = NAN;
   this->publish_state();
@@ -269,16 +267,7 @@ climate::ClimateTraits TCLACClimate::traits() {
       climate::CLIMATE_MODE_HEAT,
   });
 
-  t.set_supported_fan_modes({
-      climate::CLIMATE_FAN_AUTO,
-      climate::CLIMATE_FAN_LOW,
-      climate::CLIMATE_FAN_MEDIUM,
-      climate::CLIMATE_FAN_HIGH,
-      climate::CLIMATE_FAN_MIDDLE,
-      climate::CLIMATE_FAN_FOCUS,
-      climate::CLIMATE_FAN_QUIET,
-      climate::CLIMATE_FAN_DIFFUSE,
-  });
+  t.set_supported_custom_fan_modes({"Авто", "Низька", "Середня", "Висока", "Середній", "Фокус", "Тихо", "Дифузний"});
 
   t.set_supported_presets({
       climate::CLIMATE_PRESET_NONE,
@@ -310,10 +299,10 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
   }
 
   // Snapshot state before parsing so we can skip publish_state() if nothing changed
-  const climate::ClimateMode              prev_mode    = this->mode;
-  const optional<climate::ClimateFanMode> prev_fan     = this->fan_mode;
-  const float                             prev_target  = this->target_temperature;
-  const float                             prev_current = this->current_temperature;
+  const climate::ClimateMode  prev_mode    = this->mode;
+  const optional<std::string> prev_fan     = this->custom_fan_mode;
+  const float                 prev_target  = this->target_temperature;
+  const float                 prev_current = this->current_temperature;
 
   // Temperatures — bytes 17-18: raw sensor value; byte 8 low nibble: target
   if (len > 19) {
@@ -363,18 +352,18 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
     }
 
     if (len > RX_QUIET_POS && (d[RX_QUIET_POS] & RX_QUIET_BIT)) {
-      this->fan_mode = climate::CLIMATE_FAN_QUIET;
+      this->custom_fan_mode = "Тихо";
     } else if (d[RX_MODE_POS] & RX_DIFFUSE_BIT) {
-      this->fan_mode = climate::CLIMATE_FAN_DIFFUSE;
+      this->custom_fan_mode = "Дифузний";
     } else {
       switch (d[RX_FAN_POS] & RX_FAN_MASK) {
-        case RX_FAN_AUTO:   this->fan_mode = climate::CLIMATE_FAN_AUTO;   break;
-        case RX_FAN_LOW:    this->fan_mode = climate::CLIMATE_FAN_LOW;    break;
-        case RX_FAN_MEDIUM: this->fan_mode = climate::CLIMATE_FAN_MEDIUM; break;
-        case RX_FAN_MIDDLE: this->fan_mode = climate::CLIMATE_FAN_MIDDLE; break;
-        case RX_FAN_FOCUS:  this->fan_mode = climate::CLIMATE_FAN_FOCUS;  break;
-        case RX_FAN_HIGH:   this->fan_mode = climate::CLIMATE_FAN_HIGH;   break;
-        default:            this->fan_mode = climate::CLIMATE_FAN_AUTO;   break;
+        case RX_FAN_AUTO:   this->custom_fan_mode = "Авто";     break;
+        case RX_FAN_LOW:    this->custom_fan_mode = "Низька";   break;
+        case RX_FAN_MEDIUM: this->custom_fan_mode = "Середня";  break;
+        case RX_FAN_MIDDLE: this->custom_fan_mode = "Середній"; break;
+        case RX_FAN_FOCUS:  this->custom_fan_mode = "Фокус";    break;
+        case RX_FAN_HIGH:   this->custom_fan_mode = "Висока";   break;
+        default:            this->custom_fan_mode = "Авто";     break;
       }
     }
   }
@@ -386,13 +375,13 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
     const bool expired = (int32_t)(now - pending_until_ms_) >= 0;
     bool confirmed = true;
     if (pending_mask_ & PEND_MODE_) confirmed &= (this->mode == pending_mode_);
-    if (pending_mask_ & PEND_FAN_)  confirmed &= (this->fan_mode.has_value() &&
-                                                   this->fan_mode.value() == pending_fan_);
+    if (pending_mask_ & PEND_FAN_)  confirmed &= (this->custom_fan_mode.has_value() &&
+                                                   this->custom_fan_mode.value() == pending_fan_);
     if (pending_mask_ & PEND_TEMP_) confirmed &= (std::fabs(this->target_temperature - pending_target_) < 0.1f);
 
     if (!expired && !confirmed) {
       if (pending_mask_ & PEND_MODE_) this->mode              = pending_mode_;
-      if (pending_mask_ & PEND_FAN_)  this->fan_mode          = pending_fan_;
+      if (pending_mask_ & PEND_FAN_)  this->custom_fan_mode   = pending_fan_;
       if (pending_mask_ & PEND_TEMP_) this->target_temperature = pending_target_;
     } else {
       pending_mask_ = 0;
@@ -400,8 +389,8 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
   }
 
   const bool fan_changed =
-      this->fan_mode.has_value() != prev_fan.has_value() ||
-      (this->fan_mode.has_value() && this->fan_mode.value() != prev_fan.value());
+      this->custom_fan_mode.has_value() != prev_fan.has_value() ||
+      (this->custom_fan_mode.has_value() && this->custom_fan_mode.value() != prev_fan.value());
 
   const bool changed =
       this->mode != prev_mode                                              ||
@@ -411,10 +400,10 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
 
   if (changed) this->publish_state();
 
-  ESP_LOGD(TAG, "RX OK len=%u pwr=%d mode=%d fan=%d curr=%.1f tgt=%.1f",
+  ESP_LOGD(TAG, "RX OK len=%u pwr=%d mode=%d fan=%s curr=%.1f tgt=%.1f",
            (unsigned) len, (int) power_on,
            (int) this->mode,
-           this->fan_mode.has_value() ? (int) this->fan_mode.value() : -1,
+           this->custom_fan_mode.value_or("?").c_str(),
            this->current_temperature,
            this->target_temperature);
   // Gentle Wind: RX[50] bit5 (0x20) — confirmed by remote toggle capture
@@ -548,11 +537,11 @@ void TCLACClimate::control(const climate::ClimateCall &call) {
     }
   }
 
-  if (call.get_fan_mode().has_value()) {
-    const auto f = *call.get_fan_mode();
-    if (!this->fan_mode.has_value() || this->fan_mode.value() != f) {
-      this->fan_mode      = f;
-      this->pending_fan_  = f;
+  if (call.get_custom_fan_mode().has_value()) {
+    const auto &f = *call.get_custom_fan_mode();
+    if (!this->custom_fan_mode.has_value() || this->custom_fan_mode.value() != f) {
+      this->custom_fan_mode = f;
+      this->pending_fan_    = f;
       new_pending |= PEND_FAN_;
     }
   }

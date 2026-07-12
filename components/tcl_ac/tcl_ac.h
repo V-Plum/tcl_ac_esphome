@@ -98,9 +98,9 @@ class TCLACClimate : public climate::Climate, public uart::UARTDevice, public Co
   uint8_t  pending_mask_{0};
   uint32_t pending_until_ms_{0};
 
-  climate::ClimateMode    pending_mode_{climate::CLIMATE_MODE_OFF};
-  climate::ClimateFanMode pending_fan_{climate::CLIMATE_FAN_AUTO};
-  float                   pending_target_{0.0f};
+  climate::ClimateMode pending_mode_{climate::CLIMATE_MODE_OFF};
+  std::string          pending_fan_{"Авто"};
+  float                pending_target_{0.0f};
 
   bool display_on_{true};
   bool beeper_on_{true};
