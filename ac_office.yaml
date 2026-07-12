@@ -1,5 +1,5 @@
 ﻿substitutions:
-  friendly_name: TCL Ocarina AC
+  friendly_name: Office AC
 
 esphome:
   name: tcl-ac
@@ -9,25 +9,27 @@ esphome:
 esp8266:
   board: esp01_1m
 
-# Serial logger disabled — ESP-01 GPIO1/GPIO3 are used by the AC UART
 logger:
   baud_rate: 0
 
 api:
+  encryption:
+    key: !secret tcl_ac_api_key
 
 ota:
   - platform: esphome
     password: !secret tcl_ac_ota_password
 
 wifi:
-  # No hardcoded credentials: improv_serial or captive portal handles first-time setup
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  use_address: 192.168.50.108
   ap:
     ssid: "TCL AC Setup"
     password: !secret tcl_ac_fallback_password
 
 captive_portal:
 
-# UART to the AC indoor unit — 9600 8E1, ESP-01 hardware UART pins
 uart:
   id: ac_uart
   tx_pin: GPIO1

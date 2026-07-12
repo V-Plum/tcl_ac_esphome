@@ -14,7 +14,10 @@ TCLACClimate = tcl_ac_ns.class_(
 # It auto-generates the entity ID for TCLACClimate, replacing the old getattr hack.
 CONFIG_SCHEMA = (
     climate.climate_schema(TCLACClimate)
-    .extend({cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent)})
+    .extend({
+        cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
+        cv.Optional("object_id"): cv.string,
+    })
     .extend(cv.COMPONENT_SCHEMA)
 )
 
