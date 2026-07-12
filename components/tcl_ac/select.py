@@ -47,6 +47,7 @@ CONFIG_SCHEMA = select.select_schema(TCLACSelect).extend(
     {
         cv.GenerateID(CONF_TCL_AC_ID): cv.use_id(TCLACClimate),
         cv.Required(CONF_TYPE): cv.one_of(*SELECT_TYPES.keys(), lower=True),
+        cv.Optional("object_id"): cv.string,
     }
 )
 

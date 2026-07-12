@@ -20,6 +20,7 @@ CONFIG_SCHEMA = switch.switch_schema(TCLACSwitch).extend(
     {
         cv.GenerateID(CONF_TCL_AC_ID): cv.use_id(TCLACClimate),
         cv.Required(CONF_TYPE): cv.one_of(*SWITCH_TYPES.keys(), lower=True),
+        cv.Optional("object_id"): cv.string,
     }
 )
 
