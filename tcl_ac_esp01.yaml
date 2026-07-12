@@ -1,4 +1,4 @@
-substitutions:
+﻿substitutions:
   friendly_name: TCL Ocarina AC
 
 esphome:
@@ -43,13 +43,13 @@ external_components:
 
 climate:
   - platform: tcl_ac
-    name: "Air Conditioner"
+    name: "Кондиціонер"
     id: ac
     uart_id: ac_uart
 
 switch:
   - platform: tcl_ac
-    name: "Display"
+    name: "Дисплей"
     id: ac_display
     tcl_ac_id: ac
     type: display
@@ -57,7 +57,7 @@ switch:
     restore_mode: RESTORE_DEFAULT_ON
 
   - platform: tcl_ac
-    name: "Beeper"
+    name: "Звуковий сигнал"
     id: ac_beeper
     tcl_ac_id: ac
     type: beeper
@@ -65,7 +65,7 @@ switch:
     restore_mode: RESTORE_DEFAULT_ON
 
   - platform: tcl_ac
-    name: "Gentle Wind"
+    name: "М'який вітер"
     id: ac_gentle_wind
     tcl_ac_id: ac
     type: gentle_wind
@@ -74,14 +74,14 @@ switch:
 
 select:
   - platform: tcl_ac
-    name: "Vertical Louver"
+    name: "Вертикальні жалюзі"
     id: ac_v_louver
     tcl_ac_id: ac
     type: vertical_louver
     icon: mdi:arrow-up-down
 
   - platform: tcl_ac
-    name: "Horizontal Louver"
+    name: "Горизонтальні жалюзі"
     id: ac_h_louver
     tcl_ac_id: ac
     type: horizontal_louver

@@ -19,28 +19,28 @@ SELECT_TYPES = {
 
 # Options must match the index encoding in tcl_ac.h (TCLACSelect comment)
 V_OPTIONS = [
-    "Off (last position)",
-    "Swing: full",
-    "Swing: upper",
-    "Swing: lower",
-    "Fix: full up",
-    "Fix: upper",
-    "Fix: center",
-    "Fix: lower",
-    "Fix: full down",
+    "Вимкнено",
+    "Гойдання: повне",
+    "Гойдання: верхнє",
+    "Гойдання: нижнє",
+    "Фіксація: верх",
+    "Фіксація: верхня",
+    "Фіксація: центр",
+    "Фіксація: нижня",
+    "Фіксація: низ",
 ]
 
 H_OPTIONS = [
-    "Off (last position)",
-    "Swing: full",
-    "Swing: left",
-    "Swing: center",
-    "Swing: right",
-    "Fix: full left",
-    "Fix: left",
-    "Fix: center",
-    "Fix: right",
-    "Fix: full right",
+    "Вимкнено",
+    "Гойдання: повне",
+    "Гойдання: ліво",
+    "Гойдання: центр",
+    "Гойдання: право",
+    "Фіксація: крайній ліворуч",
+    "Фіксація: ліворуч",
+    "Фіксація: центр",
+    "Фіксація: праворуч",
+    "Фіксація: крайній праворуч",
 ]
 
 CONFIG_SCHEMA = select.select_schema(TCLACSelect).extend(
