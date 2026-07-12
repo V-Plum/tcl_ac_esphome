@@ -117,7 +117,7 @@ void TCLACClimate::build_control_frame_() {
   }
 
   // ---- Bytes 8 + 10: fan speed ----
-  const auto &cfm = this->custom_fan_mode.value_or("Авто");
+  const std::string cfm{this->has_custom_fan_mode() ? this->get_custom_fan_mode().c_str() : "Авто"};
   if      (cfm == "Тихо")     this->tx_[8]  |= TX8_QUIET;
   else if (cfm == "Дифузний") this->tx_[8]  |= TX8_DIFFUSE;
   else if (cfm == "Низька")   this->tx_[10] |= TX10_FAN_LOW;
@@ -173,7 +173,7 @@ void TCLACClimate::send_control_frame_() {
   this->write_array(this->tx_, sizeof(this->tx_));
   ESP_LOGD(TAG, "TX CTRL mode=%d fan=%s preset=%d v=%d h=%d tgt=%.1f",
            (int) this->mode,
-           this->custom_fan_mode.value_or("?").c_str(),
+           this->has_custom_fan_mode() ? this->get_custom_fan_mode().c_str() : "?",
            this->preset.has_value() ? (int) this->preset.value() : -1,
            this->v_louver_, this->h_louver_,
            this->target_temperature);
@@ -184,8 +184,9 @@ void TCLACClimate::send_control_frame_() {
 // ============================================================
 
 void TCLACClimate::setup() {
-  this->mode            = climate::CLIMATE_MODE_OFF;
-  this->custom_fan_mode = "Авто";
+  this->mode = climate::CLIMATE_MODE_OFF;
+  this->set_supported_custom_fan_modes({"Авто", "Низька", "Середня", "Висока", "Середній", "Фокус", "Тихо", "Дифузний"});
+  this->set_custom_fan_mode_("Авто");
   this->target_temperature = 24.0f;
   this->current_temperature = NAN;
   this->publish_state();
@@ -300,7 +301,7 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
 
   // Snapshot state before parsing so we can skip publish_state() if nothing changed
   const climate::ClimateMode  prev_mode    = this->mode;
-  const optional<std::string> prev_fan     = this->custom_fan_mode;
+  const std::string prev_fan{this->has_custom_fan_mode() ? this->get_custom_fan_mode().c_str() : ""};
   const float                 prev_target  = this->target_temperature;
   const float                 prev_current = this->current_temperature;
 
@@ -352,18 +353,18 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
     }
 
     if (len > RX_QUIET_POS && (d[RX_QUIET_POS] & RX_QUIET_BIT)) {
-      this->custom_fan_mode = "Тихо";
+      this->set_custom_fan_mode_("Тихо");
     } else if (d[RX_MODE_POS] & RX_DIFFUSE_BIT) {
-      this->custom_fan_mode = "Дифузний";
+      this->set_custom_fan_mode_("Дифузний");
     } else {
       switch (d[RX_FAN_POS] & RX_FAN_MASK) {
-        case RX_FAN_AUTO:   this->custom_fan_mode = "Авто";     break;
-        case RX_FAN_LOW:    this->custom_fan_mode = "Низька";   break;
-        case RX_FAN_MEDIUM: this->custom_fan_mode = "Середня";  break;
-        case RX_FAN_MIDDLE: this->custom_fan_mode = "Середній"; break;
-        case RX_FAN_FOCUS:  this->custom_fan_mode = "Фокус";    break;
-        case RX_FAN_HIGH:   this->custom_fan_mode = "Висока";   break;
-        default:            this->custom_fan_mode = "Авто";     break;
+        case RX_FAN_AUTO:   this->set_custom_fan_mode_("Авто");     break;
+        case RX_FAN_LOW:    this->set_custom_fan_mode_("Низька");   break;
+        case RX_FAN_MEDIUM: this->set_custom_fan_mode_("Середня");  break;
+        case RX_FAN_MIDDLE: this->set_custom_fan_mode_("Середній"); break;
+        case RX_FAN_FOCUS:  this->set_custom_fan_mode_("Фокус");    break;
+        case RX_FAN_HIGH:   this->set_custom_fan_mode_("Висока");   break;
+        default:            this->set_custom_fan_mode_("Авто");     break;
       }
     }
   }
@@ -375,22 +376,20 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
     const bool expired = (int32_t)(now - pending_until_ms_) >= 0;
     bool confirmed = true;
     if (pending_mask_ & PEND_MODE_) confirmed &= (this->mode == pending_mode_);
-    if (pending_mask_ & PEND_FAN_)  confirmed &= (this->custom_fan_mode.has_value() &&
-                                                   this->custom_fan_mode.value() == pending_fan_);
+    if (pending_mask_ & PEND_FAN_)  confirmed &= (this->has_custom_fan_mode() &&
+                                                   this->get_custom_fan_mode() == pending_fan_);
     if (pending_mask_ & PEND_TEMP_) confirmed &= (std::fabs(this->target_temperature - pending_target_) < 0.1f);
 
     if (!expired && !confirmed) {
       if (pending_mask_ & PEND_MODE_) this->mode              = pending_mode_;
-      if (pending_mask_ & PEND_FAN_)  this->custom_fan_mode   = pending_fan_;
+      if (pending_mask_ & PEND_FAN_)  this->set_custom_fan_mode_(pending_fan_.c_str());
       if (pending_mask_ & PEND_TEMP_) this->target_temperature = pending_target_;
     } else {
       pending_mask_ = 0;
     }
   }
 
-  const bool fan_changed =
-      this->custom_fan_mode.has_value() != prev_fan.has_value() ||
-      (this->custom_fan_mode.has_value() && this->custom_fan_mode.value() != prev_fan.value());
+  const bool fan_changed = this->get_custom_fan_mode() != prev_fan;
 
   const bool changed =
       this->mode != prev_mode                                              ||
@@ -403,7 +402,7 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
   ESP_LOGD(TAG, "RX OK len=%u pwr=%d mode=%d fan=%s curr=%.1f tgt=%.1f",
            (unsigned) len, (int) power_on,
            (int) this->mode,
-           this->custom_fan_mode.value_or("?").c_str(),
+           this->has_custom_fan_mode() ? this->get_custom_fan_mode().c_str() : "?",
            this->current_temperature,
            this->target_temperature);
   // Gentle Wind: RX[50] bit5 (0x20) — confirmed by remote toggle capture
@@ -519,6 +518,7 @@ void TCLACClimate::control(const climate::ClimateCall &call) {
   const bool has_any =
       call.get_mode().has_value()                    ||
       call.get_fan_mode().has_value()                ||
+      !call.get_custom_fan_mode().empty()            ||
       call.get_target_temperature().has_value()      ||
       call.get_target_temperature_low().has_value()  ||
       call.get_target_temperature_high().has_value() ||
@@ -537,12 +537,15 @@ void TCLACClimate::control(const climate::ClimateCall &call) {
     }
   }
 
-  if (call.get_custom_fan_mode().has_value()) {
-    const auto &f = *call.get_custom_fan_mode();
-    if (!this->custom_fan_mode.has_value() || this->custom_fan_mode.value() != f) {
-      this->custom_fan_mode = f;
-      this->pending_fan_    = f;
-      new_pending |= PEND_FAN_;
+  {
+    const auto cfm_req = call.get_custom_fan_mode();
+    if (!cfm_req.empty()) {
+      const std::string f{cfm_req.c_str()};
+      if (!this->has_custom_fan_mode() || this->get_custom_fan_mode() != f) {
+        this->set_custom_fan_mode_(f.c_str());
+        this->pending_fan_ = f;
+        new_pending |= PEND_FAN_;
+      }
     }
   }
 
