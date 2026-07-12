@@ -121,8 +121,8 @@ void TCLACClimate::build_control_frame_() {
   if      (cfm == "Тихо")     this->tx_[8]  |= TX8_QUIET;
   else if (cfm == "Дифузний") this->tx_[8]  |= TX8_DIFFUSE;
   else if (cfm == "Низька")   this->tx_[10] |= TX10_FAN_LOW;
-  else if (cfm == "Середня")  this->tx_[10] |= TX10_FAN_MEDIUM;
-  else if (cfm == "Середній") this->tx_[10] |= TX10_FAN_MIDDLE;
+  else if (cfm == "Помірна")  this->tx_[10] |= TX10_FAN_MEDIUM;
+  else if (cfm == "Середня")  this->tx_[10] |= TX10_FAN_MIDDLE;
   else if (cfm == "Висока")   this->tx_[10] |= TX10_FAN_HIGH;
   else if (cfm == "Фокус")    this->tx_[10] |= TX10_FAN_FOCUS;
   /* else "Авто" = 0, already zeroed */
@@ -185,7 +185,7 @@ void TCLACClimate::send_control_frame_() {
 
 void TCLACClimate::setup() {
   this->mode = climate::CLIMATE_MODE_OFF;
-  this->set_supported_custom_fan_modes({"Авто", "Низька", "Середня", "Висока", "Середній", "Фокус", "Тихо", "Дифузний"});
+  this->set_supported_custom_fan_modes({"Авто", "Низька", "Помірна", "Середня", "Висока", "Фокус", "Тихо", "Дифузний"});
   this->set_custom_fan_mode_("Авто");
   this->target_temperature = 24.0f;
   this->current_temperature = NAN;
@@ -268,7 +268,7 @@ climate::ClimateTraits TCLACClimate::traits() {
       climate::CLIMATE_MODE_HEAT,
   });
 
-  t.set_supported_custom_fan_modes({"Авто", "Низька", "Середня", "Висока", "Середній", "Фокус", "Тихо", "Дифузний"});
+  t.set_supported_custom_fan_modes({"Авто", "Низька", "Помірна", "Середня", "Висока", "Фокус", "Тихо", "Дифузний"});
 
   t.set_supported_presets({
       climate::CLIMATE_PRESET_NONE,
@@ -360,8 +360,8 @@ void TCLACClimate::handle_frame_(const uint8_t *d, size_t len) {
       switch (d[RX_FAN_POS] & RX_FAN_MASK) {
         case RX_FAN_AUTO:   this->set_custom_fan_mode_("Авто");     break;
         case RX_FAN_LOW:    this->set_custom_fan_mode_("Низька");   break;
-        case RX_FAN_MEDIUM: this->set_custom_fan_mode_("Середня");  break;
-        case RX_FAN_MIDDLE: this->set_custom_fan_mode_("Середній"); break;
+        case RX_FAN_MEDIUM: this->set_custom_fan_mode_("Помірна");  break;
+        case RX_FAN_MIDDLE: this->set_custom_fan_mode_("Середня"); break;
         case RX_FAN_FOCUS:  this->set_custom_fan_mode_("Фокус");    break;
         case RX_FAN_HIGH:   this->set_custom_fan_mode_("Висока");   break;
         default:            this->set_custom_fan_mode_("Авто");     break;
